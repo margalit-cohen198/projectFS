@@ -25,24 +25,6 @@ fs.readFile('./init.sql', 'utf8', (err, data) => {
   const runCommands = (commands) => {
     if (commands.length === 0) {
       console.log('📦 טבלאות נוצרו בהצלחה');
-
-      // הגדרת הנתיבים והפעלת השרת רק לאחר יצירת הטבלאות
-      app.use('/users', usersRouter);
-      app.use('/posts', postsRouter);
-      app.use('/comments', commentsRouter);
-      app.use('/todos', todosRouter);
-
-      // נתיב ברירת מחדל
-      app.get('/', (req, res) => {
-        res.send('השרת רץ בהצלחה!');
-      });
-
-      // הפעלת השרת
-      app.listen(PORT, () => {
-        console.log(`🚀 השרת פעיל על http://localhost:${PORT}`);
-      });
-
-      return;
     }
 
     const currentCommand = commands.shift().trim();
@@ -61,6 +43,25 @@ fs.readFile('./init.sql', 'utf8', (err, data) => {
       runCommands(commands);
     }
   };
+  // הגדרת הנתיבים והפעלת השרת רק לאחר יצירת הטבלאות
+  app.use('/users', usersRouter);
+  app.use('/posts', postsRouter);
+  app.use('/comments', commentsRouter);
+  app.use('/todos', todosRouter);
+
+  // נתיב ברירת מחדל
+  app.get('/', (req, res) => {
+    res.send('השרת רץ בהצלחה!');
+  });
+
+  // הפעלת השרת
+  app.listen(PORT, () => {
+    console.log(`🚀 השרת פעיל על http://localhost:${PORT}`);
+  });
+
+  return;
+
+
 
   runCommands(sqlCommands);
 });
