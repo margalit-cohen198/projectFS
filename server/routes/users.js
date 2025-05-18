@@ -1,20 +1,40 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db'); // נניח שיצרנו קובץ db.js לחיבור למסד הנתונים
+const { buildQuery } = require('../queryUtils');
 
-// נתיב GET לקבלת כל המשתמשים
+// // נתיב GET לקבלת כל המשתמשים
+// router.get('/', (req, res) => {
+//   const sql = 'SELECT * FROM users';
+//   db.query(sql, (err, results) => {
+//     if (err) {
+//       console.error('שגיאה בשליפת משתמשים:', err);
+//       res.status(500).json({ error: 'שגיאה בשרת' });
+//       return;
+//     }
+//     res.json(results);
+//   });
+// });
+
+// GET - קבלת משתמשים עם אפשרות לסינון ומיין
 router.get('/', (req, res) => {
-  // const sql = 'SELECT * FROM users';
-  // db.query(sql, (err, results) => {
-  //   if (err) {
-  //     console.error('שגיאה בשליפת משתמשים:', err);
-  //     res.status(500).json({ error: 'שגיאה בשרת' });
-  //     return;
-  //   }
-  //   res.json(results);
-  // });
-  res.send('usersרץ בהצלחה!');
+  const { whereClause, orderBy, values } = buildQuery('users', req.query, {
+    userId: 'user_id', // מיפוי אם שם הפרמטר ב-URL שונה משם העמודה ב-DB
+    username:'username'
+    // הוסף מיפויים נוספים לפי הצורך
+  });
+
+  const sql = `SELECT * FROM users ${whereClause} ${orderBy}`;
+
+  db.query(sql, values, (err, results) => {
+    if (err) {
+      console.error('שגיאה בשליפת משתמשים:', err);
+      return res.status(500).json({ error: 'שגיאה בשרת' });
+    }
+    res.status(200).json(results);
+  });
 });
+
 
 // נתיב GET לקבלת משתמש לפי ID
 router.get('/:id', (req, res) => {
@@ -50,7 +70,7 @@ router.post('/', (req, res) => {
 
 // נתיב PUT לעדכון משתמש קיים
 router.put('/:id', (req, res) => {
-  const userId = req.params.id;
+  const userId = parseInt(req.params.id); // ננסה להמיר ל-Integer
   const { name, username, email, phone, website } = req.body;
   const sql = 'UPDATE users SET name = ?, username = ?, email = ?, phone = ?, website = ? WHERE id = ?';
   db.query(sql, [name, username, email, phone, website, userId], (err, results) => {
@@ -69,7 +89,7 @@ router.put('/:id', (req, res) => {
 
 // נתיב DELETE למחיקת משתמש קיים
 router.delete('/:id', (req, res) => {
-  const userId = req.params.id;
+  const userId = parseInt(req.params.id); // ננסה להמיר ל-Integer
   const sql = 'DELETE FROM users WHERE id = ?';
   db.query(sql, [userId], (err, results) => {
     if (err) {
