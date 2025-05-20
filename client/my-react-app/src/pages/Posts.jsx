@@ -111,7 +111,7 @@ function Posts() {
             const response = await fetch('http://localhost:3001/comments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ post_id: postId, user_id: currentUser.id, body: newComment }),
+                body: JSON.stringify({ post_id: postId, name: currentUser.username,email: currentUser.email, body: newComment }),
             });
             if (response.ok) {
                 setNewComment('');

@@ -22,7 +22,7 @@ function Todos() {
     const fetchTodos = async () => {
         if (!currentUser?.id) return;
         try {
-            const response = await fetch(`http://localhost:3001/users/${currentUser.id}`);
+            const response = await fetch(`http://localhost:3001/todos?userId=${currentUser.id}`);
             if (response.ok) {
                 const data = await response.json();
                 setTodos(data.sort((a, b) => a.id - b.id));

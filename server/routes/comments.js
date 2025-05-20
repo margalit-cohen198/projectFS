@@ -58,12 +58,12 @@ router.get('/:id', (req, res) => {
 
 // POST - הוספת תגובה חדשה
 router.post('/', (req, res) => {
-    const { postId, userId, body } = req.body;
-    if (!postId || !userId || !body) {
-        return res.status(400).json({ error: 'יש לספק postId, userId ו-body' });
+    const { post_id, name, email, body } = req.body;
+    if (!post_id || !name || !email || !body) {
+        return res.status(400).json({ error: 'יש לספק  postId, name email ו-body' });
     }
-    const sql = 'INSERT INTO comments (post_id, user_id, body) VALUES (?, ?, ?)';
-    db.query(sql, [postId, userId, body], (err, results) => {
+    const sql = 'INSERT INTO comments (post_id, name, email, body) VALUES (?, ?, ?, ?)';
+    db.query(sql, [post_id, name, email, body], (err, results) => {
         if (err) {
             console.error('שגיאה בהוספת תגובה:', err);
             return res.status(500).json({ error: 'שגיאה בשרת' });
