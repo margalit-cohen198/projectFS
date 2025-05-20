@@ -4,21 +4,43 @@ const db = require('../db');
 const { buildQuery } = require('../queryUtils');
 
 // GET - קבלת פוסטים עם אפשרות לסינון ומיין
-router.get('/', (req, res) => {
-  const { whereClause, orderBy, values } = buildQuery('posts', req.query, {
-    userId: 'user_id', // מיפוי אם שם הפרמטר ב-URL שונה משם העמודה ב-DB
-    title: 'title'
-    // הוסף מיפויים נוספים לפי הצורך
-  });
+// router.get('/', (req, res) => {
+//   const { whereClause, orderBy, values } = buildQuery('posts', req.query, {
+//     userId: 'user_id', // מיפוי אם שם הפרמטר ב-URL שונה משם העמודה ב-DB
+//     title: 'title'
+//     // הוסף מיפויים נוספים לפי הצורך
+//   });
 
-  const sql = `SELECT * FROM posts ${whereClause} ${orderBy}`;
+//   const sql = `SELECT * FROM posts ${whereClause} ${orderBy}`;
+
+//   db.query(sql, values, (err, results) => {
+//     if (err) {
+//       console.error('שגיאה בשליפת פוסטים:', err);
+//       return res.status(500).json({ error: 'שגיאה בשרת' });
+//     }
+//     res.status(200).json(results);
+//   });
+// });
+
+router.get('/', (req, res) => {
+  const { userId } = req.query;
+  let sql = 'SELECT * FROM posts';
+  const values = [];
+
+  if (userId) {
+      sql += ' WHERE user_id = ?';
+      values.push(userId);
+  }
+  sql += ' ORDER BY id';
+
+  console.log('SQL Query:', sql, 'Values:', values); // לוג לבדיקת השאילתה והערכים
 
   db.query(sql, values, (err, results) => {
-    if (err) {
-      console.error('שגיאה בשליפת פוסטים:', err);
-      return res.status(500).json({ error: 'שגיאה בשרת' });
-    }
-    res.status(200).json(results);
+      if (err) {
+          console.error('שגיאה בשליפת פוסטים:', err);
+          return res.status(500).json({ error: 'שגיאה בשרת' });
+      }
+      res.status(200).json(results);
   });
 });
 
@@ -187,6 +209,106 @@ router.options('/', (req, res) => {
 router.options('/:id', (req, res) => {
   res.setHeader('Allow', 'GET, PUT, PATCH, DELETE, HEAD, OPTIONS');
   res.status(200).end();
+});
+// --- נתיבים עבור POSTS ---
+
+// GET - קבלת כל הפוסטים עם אפשרות לשלב תגובות
+router.get('/', (req, res) => {
+  const includeComments = req.query._embed === 'comments';
+  const { whereClause, orderBy, values } = buildQuery('posts', req.query, {
+    id: 'id',
+    title: 'title',
+    body: 'body',
+    userId: 'user_id'
+  });
+  let sql = 'SELECT * FROM posts ORDER BY id';
+  if (includeComments) {
+    sql = `
+            SELECT p.*, JSON_ARRAYAGG(JSON_OBJECT('id', c.id, 'post_id', c.post_id, 'name', c.name, 'email', c.email, 'body', c.body)) AS comments
+            FROM posts p
+            LEFT JOIN comments c ON p.id = c.post_id
+            ${whereClause ? whereClause.replace('WHERE', 'AND') : 'WHERE 1=1'}
+            GROUP BY p.id
+            ${orderBy}
+        `;
+  }
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('שגיאה בשליפת פוסטים:', err);
+      return res.status(500).json({ error: 'שגיאה בשרת' });
+    }
+    res.status(200).json(results);
+  });
+});
+
+// POST - הוספת פוסט חדש
+router.post('/', (req, res) => {
+  const { userId, title, body } = req.body;
+  if (!userId || !title || !body) {
+    return res.status(400).json({ error: 'יש לספק userId, כותרת ותוכן לפוסט' });
+  }
+  const sql = 'INSERT INTO posts (user_id, title, body) VALUES (?, ?, ?)';
+  db.query(sql, [userId, title, body], (err, results) => {
+    if (err) {
+      console.error('שגיאה בהוספת פוסט:', err);
+      return res.status(500).json({ error: 'שגיאה בשרת' });
+    }
+    res.status(201).json({ id: results.insertId, userId, title, body });
+  });
+});
+
+// PUT - עדכון פוסט קיים (רק אם שייך למשתמש)
+router.put('/:id', (req, res) => {
+  const postId = parseInt(req.params.id);
+  if (isNaN(postId)) {
+    return res.status(400).json({ error: 'ID פוסט לא תקין' });
+  }
+  const { title, body, userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'יש לספק userId של הפוסט' });
+  }
+  const updates = {};
+  if (title !== undefined) updates.title = title;
+  if (body !== undefined) updates.body = body;
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'אין שדות לעדכון' });
+  }
+
+  const sql = 'UPDATE posts SET ? WHERE id = ? AND user_id = ?';
+  db.query(sql, [updates, postId, userId], (err, results) => {
+    if (err) {
+      console.error('שגיאה בעדכון פוסט:', err);
+      return res.status(500).json({ error: 'שגיאה בשרת' });
+    }
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ message: 'פוסט לא נמצא או שאינו שייך למשתמש' });
+    }
+    res.status(200).json({ message: 'פוסט עודכן בהצלחה' });
+  });
+});
+
+// DELETE - מחיקת פוסט קיים (רק אם שייך למשתמש)
+router.delete('/:id', (req, res) => {
+  const postId = parseInt(req.params.id);
+  if (isNaN(postId)) {
+    return res.status(400).json({ error: 'ID פוסט לא תקין' });
+  }
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'יש לספק userId של הפוסט' });
+  }
+  const sql = 'DELETE FROM posts WHERE id = ?';
+  db.query(sql, [postId], (err, results) => {
+    if (err) {
+      console.error('שגיאה במחיקת פוסטה:', err);
+      return res.status(500).json({ error: 'שגיאה בשרת' });
+    }
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ message: 'פוסט לא נמצאה' });
+    }
+    res.status(200).json({ message: 'פוסט נמחקה בהצלחה' });
+  });
 });
 
 module.exports = router;

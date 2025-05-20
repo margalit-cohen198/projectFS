@@ -3,11 +3,16 @@ const router = express.Router();
 const db = require('../db');
 const { buildQuery } = require('../queryUtils');
 
-
-// GET - קבלת כל התגובות
+// GET - קבלת כל התגובות (אפשרות עם סינון כללי)
 router.get('/', (req, res) => {
-    const sql = 'SELECT * FROM comments';
-    db.query(sql, (err, results) => {
+    const { whereClause, orderBy, values } = buildQuery('comments', req.query, {
+        postid: 'post_id', // מאפשר סינון לפי post_id בשאילתה
+        // הוסף מיפויים נוספים לסינון לפי הצורך
+    });
+
+    const sql = `SELECT * FROM comments ${whereClause} ${orderBy}`;
+
+    db.query(sql, values, (err, results) => {
         if (err) {
             console.error('שגיאה בשליפת תגובות:', err);
             return res.status(500).json({ error: 'שגיאה בשרת' });
@@ -16,23 +21,21 @@ router.get('/', (req, res) => {
     });
 });
 
-
-// GET - קבלת  התגובות עם אפשרות לסינון ומיין
-router.get('/', (req, res) => {
-    const { whereClause, orderBy, values } = buildQuery('comments', req.query, {
-        postid: 'post_id', // מיפוי אם שם הפרמטר ב-URL שונה משם העמודה ב-DB
+// GET - קבלת תגובות עבור פוסט ספציפי
+router.get('/post/:postId', (req, res) => {
+    const postId = parseInt(req.params.postId);
+    if (isNaN(postId)) {
+        return res.status(400).json({ error: 'ID פוסט לא תקין' });
+    }
+    const sql = 'SELECT * FROM comments WHERE post_id = ?';
+    db.query(sql, [postId], (err, results) => {
+        if (err) {
+            console.error('שגיאה בשליפת תגובות עבור פוסט:', err);
+            return res.status(500).json({ error: 'שגיאה בשרת' });
+        }
+        res.status(200).json(results);
     });
-  
-    const sql = `SELECT * FROM comments ${whereClause} ${orderBy}`;
-  
-    db.query(sql, values, (err, results) => {
-      if (err) {
-        console.error('שגיאה בשליפת  התגובותם:', err);
-        return res.status(500).json({ error: 'שגיאה בשרת' });
-      }
-      res.status(200).json(results);
-    });
-  });
+});
 
 // GET - קבלת תגובה לפי ID
 router.get('/:id', (req, res) => {
@@ -200,6 +203,12 @@ router.options('/:id', (req, res) => {
 // OPTIONS - קבלת רשימת שיטות HTTP נתמכות עבור /comments/byPost/:postId
 router.options('/byPost/:postId', (req, res) => {
     res.setHeader('Allow', 'DELETE, OPTIONS');
+    res.status(200).end();
+});
+
+// OPTIONS - קבלת רשימת שיטות HTTP נתמכות עבור /comments/post/:postId
+router.options('/post/:postId', (req, res) => {
+    res.setHeader('Allow', 'GET, POST, OPTIONS');
     res.status(200).end();
 });
 
